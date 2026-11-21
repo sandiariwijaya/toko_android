@@ -6,6 +6,7 @@ import '../db/database.dart';
 import '../models.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
+import '../widgets/details.dart';
 import '../widgets/scanner.dart';
 import 'home_shell.dart';
 import 'product_form.dart';
@@ -82,7 +83,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     if (_ver != app.dataVersion) {
-      if (_ver != -1) _load();
+      if (_ver != -1) WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
       _ver = app.dataVersion;
     }
     final cs = Theme.of(context).colorScheme;
@@ -95,10 +98,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final stats = t == null
         ? <Widget>[]
         : [
-            StatCard(title: 'Penjualan hari ini', value: rp(t.total), icon: Icons.trending_up_rounded, color: Colors.green),
-            StatCard(title: 'Transaksi', value: nf(t.trxCount), icon: Icons.receipt_rounded, color: Colors.blue, sub: '${fq(t.itemsSold)} item terjual'),
-            if (app.isOwner) StatCard(title: 'Laba kotor', value: rp(t.grossProfit), icon: Icons.savings_rounded, color: Colors.purple),
             StatCard(
+                title: 'Penjualan hari ini',
+                value: rp(t.total),
+                icon: Icons.trending_up_rounded,
+                color: Colors.green,
+                onTap: () => Details.sales(context, t.from, t.to, title: 'Penjualan Hari Ini')),
+            StatCard(
+                title: 'Transaksi',
+                value: nf(t.trxCount),
+                icon: Icons.receipt_rounded,
+                color: Colors.blue,
+                sub: '${fq(t.itemsSold)} item terjual',
+                onTap: () => Details.itemsSold(context, t.from, t.to)),
+            if (app.isOwner)
+              StatCard(
+                  title: 'Laba kotor',
+                  value: rp(t.grossProfit),
+                  icon: Icons.savings_rounded,
+                  color: Colors.purple,
+                  onTap: () => Details.profit(context, t.from, t.to)),
+            StatCard(
+                onTap: () => Details.stock(context, mode: 'low'),
                 title: 'Stok menipis',
                 value: nf(_low.length),
                 icon: Icons.warning_amber_rounded,
@@ -135,24 +156,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   // kartu toko
                   Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(18),
                       gradient: LinearGradient(colors: [cs.primary, Color.lerp(cs.primary, cs.tertiary, 0.7)!]),
                     ),
                     child: Row(children: [
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(app.get('store_name'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 6),
-                          Text(rp(t?.total ?? 0), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900)),
+                          Text(rp(t?.total ?? 0), style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900, height: 1.2)),
                           Text('Total penjualan hari ini', style: TextStyle(color: Colors.white.withOpacity(0.85))),
                         ]),
                       ),
-                      ClipRRect(borderRadius: BorderRadius.circular(18), child: Image.asset('assets/logo.png', width: 70, height: 70)),
+                      ClipRRect(borderRadius: BorderRadius.circular(18), child: Image.asset('assets/logo.png', width: 56, height: 56)),
                     ]),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   // aksi cepat
                   Row(children: [
                     for (final a in actions)
@@ -160,32 +180,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: SoftCard(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                             onTap: a.$4,
                             child: Column(children: [
                               Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(color: a.$3.withOpacity(0.14), borderRadius: BorderRadius.circular(14)),
-                                child: Icon(a.$1, color: a.$3),
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(color: a.$3.withOpacity(0.14), borderRadius: BorderRadius.circular(12)),
+                                child: Icon(a.$1, color: a.$3, size: 22),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               FittedBox(child: Text(a.$2, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
                             ]),
                           ),
                         ),
                       ),
                   ]),
-                  const SizedBox(height: 6),
-                  GridView.count(
-                    crossAxisCount: tablet ? 4 : 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: tablet ? 2.3 : 1.75,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    padding: const EdgeInsets.only(top: 10),
-                    children: stats,
-                  ),
+                  const SizedBox(height: 8),
+                  StatGrid(columns: tablet ? 4 : 2, children: stats),
                   if (tablet)
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Expanded(flex: 3, child: _chart(context)),
@@ -215,6 +226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             subtitle: Text('${fmtTime(s.createdAt)} • ${s.method} • ${s.userName}'),
                             trailing: Text(rp(s.total),
                                 style: TextStyle(fontWeight: FontWeight.w800, decoration: s.isVoid ? TextDecoration.lineThrough : null)),
+                            onTap: () => showSaleDetail(context, s.id, onChanged: _load),
                           ),
                       ]),
                     ),
@@ -233,7 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: MiniBarChart(
           labels: [for (final d in w.daily) fmtDayShort(d.day)],
           values: [for (final d in w.daily) d.total],
-          height: 170,
+          height: 140,
         ),
       ),
     ]);
@@ -261,6 +273,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text('Minimum ${fq(p.minStock)} ${p.unit}'),
                     trailing: Pill(p.stock <= 0 ? 'HABIS' : 'Sisa ${fq(p.stock)}', color: stockColor(context, p.stock, p.minStock)),
+                    onTap: () async {
+                      if (await quickEditProduct(context, p, from: 'beranda')) _load();
+                    },
                   ),
                 if (_low.length > 6)
                   Padding(

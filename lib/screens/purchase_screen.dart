@@ -288,35 +288,36 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       ]),
     ]);
 
+    Widget lineCard(CartLine l) => SoftCard(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          onTap: () => _editLine(l),
+          child: Row(children: [
+            ProductAvatar(l.product.name, size: 38),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(l.product.name, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.2)),
+                Text('${fq(l.qty)} ${l.product.unit} x ${rp(l.price)}', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5, height: 1.2)),
+                if (l.newSellPrice != null)
+                  Text('Harga jual baru: ${rp(l.newSellPrice!)}', style: TextStyle(color: cs.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+            Text(rp(l.subtotal), style: const TextStyle(fontWeight: FontWeight.w800)),
+          ]),
+        );
+
+    const empty = EmptyState(
+        icon: Icons.local_shipping_outlined,
+        title: 'Belum ada barang masuk',
+        subtitle: 'Scan barcode atau cari barang yang dibeli dari supplier. Stok otomatis bertambah setelah disimpan.');
+
     final list = _lines.isEmpty
-        ? const EmptyState(
-            icon: Icons.local_shipping_outlined,
-            title: 'Belum ada barang masuk',
-            subtitle: 'Scan barcode atau cari barang yang dibeli dari supplier. Stok otomatis bertambah setelah disimpan.')
+        ? empty
         : ListView.separated(
             padding: const EdgeInsets.only(bottom: 16),
             itemCount: _lines.length,
             separatorBuilder: (_, __) => const SizedBox(height: 6),
-            itemBuilder: (_, i) {
-              final l = _lines[i];
-              return SoftCard(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                onTap: () => _editLine(l),
-                child: Row(children: [
-                  ProductAvatar(l.product.name, size: 40),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(l.product.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text('${fq(l.qty)} ${l.product.unit} x ${rp(l.price)}', style: TextStyle(color: cs.onSurfaceVariant)),
-                      if (l.newSellPrice != null)
-                        Text('Harga jual baru: ${rp(l.newSellPrice!)}', style: TextStyle(color: cs.primary, fontSize: 12, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-                  Text(rp(l.subtotal), style: const TextStyle(fontWeight: FontWeight.w800)),
-                ]),
-              );
-            },
+            itemBuilder: (_, i) => lineCard(_lines[i]),
           );
 
     final footer = SafeArea(
@@ -351,9 +352,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                 Expanded(child: list),
               ]),
             )
-          : Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              child: Column(children: [header, const SizedBox(height: 12), Expanded(child: list)]),
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+              children: [
+                header,
+                const SizedBox(height: 10),
+                if (_lines.isEmpty) const SizedBox(height: 300, child: empty),
+                for (final l in _lines) Padding(padding: const EdgeInsets.only(bottom: 6), child: lineCard(l)),
+              ],
             ),
       bottomNavigationBar: footer,
     );

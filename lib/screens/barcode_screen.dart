@@ -129,7 +129,7 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
           ),
           const SizedBox(height: 10),
           if (_items.isEmpty)
-            const EmptyState(icon: Icons.qr_code_2_rounded, title: 'Belum ada barang dipilih', subtitle: 'Tekan "Pilih Barang"'),
+            const SizedBox(height: 260, child: EmptyState(icon: Icons.qr_code_2_rounded, title: 'Belum ada barang dipilih', subtitle: 'Tekan "Pilih Barang"')),
           for (var i = 0; i < _items.length; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),

@@ -34,14 +34,24 @@ ThemeData buildTheme(Color seed, Brightness brightness) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: cs,
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    listTileTheme: const ListTileThemeData(
+      dense: true,
+      visualDensity: VisualDensity(horizontal: 0, vertical: -2),
+      minVerticalPadding: 4,
+      contentPadding: EdgeInsets.symmetric(horizontal: 12),
+    ),
+    dividerTheme: const DividerThemeData(space: 12),
     brightness: brightness,
     scaffoldBackgroundColor: light ? const Color(0xFFF5F7FB) : cs.surface,
     appBarTheme: AppBarTheme(
       centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 1,
+      toolbarHeight: 52,
       backgroundColor: light ? const Color(0xFFF5F7FB) : cs.surface,
-      titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: cs.onSurface),
+      titleTextStyle: TextStyle(fontSize: 18.5, fontWeight: FontWeight.w800, color: cs.onSurface),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -52,13 +62,15 @@ ThemeData buildTheme(Color seed, Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: light ? Colors.white : cs.surfaceContainerHighest.withOpacity(0.3),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 66,
+      height: 62,
       backgroundColor: light ? Colors.white : cs.surfaceContainer,
       indicatorColor: cs.primaryContainer,
       labelTextStyle: WidgetStateProperty.all(const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),

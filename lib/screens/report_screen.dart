@@ -8,6 +8,7 @@ import '../services/export.dart';
 import '../services/printer.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
+import '../widgets/details.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -121,7 +122,9 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     if (_ver != app.dataVersion) {
-      if (_ver != -1) _load();
+      if (_ver != -1) WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
       _ver = app.dataVersion;
     }
     final d = _d;
@@ -131,9 +134,8 @@ class _ReportScreenState extends State<ReportScreen> {
       appBar: AppBar(
         title: const Text('Laporan'),
         actions: [
-          IconButton(tooltip: 'Cetak', onPressed: () => _print(), icon: const Icon(Icons.print_rounded)),
-          FilledButton.tonalIcon(onPressed: _actions, icon: const Icon(Icons.ios_share_rounded), label: const Text('Cetak / Ekspor')),
-          const SizedBox(width: 8),
+          IconButton(tooltip: 'Cetak ke printer', onPressed: () => _print(), icon: const Icon(Icons.print_rounded)),
+          IconButton(tooltip: 'Cetak / Ekspor PDF & Excel', onPressed: _actions, icon: const Icon(Icons.ios_share_rounded)),
         ],
       ),
       body: Column(children: [
@@ -153,32 +155,76 @@ class _ReportScreenState extends State<ReportScreen> {
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
-                    GridView.count(
-                      crossAxisCount: tablet ? 4 : 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: tablet ? 2.3 : 1.7,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
+                    StatGrid(
+                      columns: tablet ? 4 : 2,
                       children: [
-                        StatCard(title: 'Total penjualan', value: rp(d.total), icon: Icons.trending_up_rounded, color: Colors.green),
-                        StatCard(title: 'Transaksi', value: nf(d.trxCount), icon: Icons.receipt_rounded, color: Colors.blue, sub: 'Rata-rata ${rp(d.average)}'),
-                        StatCard(title: 'Item terjual', value: fq(d.itemsSold), icon: Icons.shopping_basket_rounded, color: Colors.orange),
-                        StatCard(title: 'Diskon', value: rp(d.discount), icon: Icons.discount_rounded, color: Colors.pink),
+                        StatCard(
+                            title: 'Total penjualan',
+                            value: rp(d.total),
+                            icon: Icons.trending_up_rounded,
+                            color: Colors.green,
+                            onTap: () => Details.sales(context, _from, _to)),
+                        StatCard(
+                            title: 'Transaksi',
+                            value: nf(d.trxCount),
+                            icon: Icons.receipt_rounded,
+                            color: Colors.blue,
+                            sub: 'Rata² ${rp(d.average)}',
+                            onTap: () => Details.sales(context, _from, _to)),
+                        StatCard(
+                            title: 'Item terjual',
+                            value: fq(d.itemsSold),
+                            icon: Icons.shopping_basket_rounded,
+                            color: Colors.orange,
+                            onTap: () => Details.itemsSold(context, _from, _to)),
+                        StatCard(
+                            title: 'Diskon',
+                            value: rp(d.discount),
+                            icon: Icons.discount_rounded,
+                            color: Colors.pink,
+                            onTap: () => Details.sales(context, _from, _to, title: 'Transaksi dengan Diskon', onlyDiscount: true)),
                         if (owner) ...[
-                          StatCard(title: 'Modal (HPP)', value: rp(d.hpp), icon: Icons.inventory_rounded, color: Colors.brown),
                           StatCard(
-                              title: 'Laba kotor', value: rp(d.grossProfit), icon: Icons.savings_rounded, color: Colors.purple, sub: 'Margin ${d.margin.toStringAsFixed(1)}%'),
-                          StatCard(title: 'Pengeluaran', value: rp(d.expense), icon: Icons.payments_rounded, color: Colors.red),
+                              title: 'Modal (HPP)',
+                              value: rp(d.hpp),
+                              icon: Icons.inventory_rounded,
+                              color: Colors.brown,
+                              onTap: () => Details.profit(context, _from, _to)),
+                          StatCard(
+                              title: 'Laba kotor',
+                              value: rp(d.grossProfit),
+                              icon: Icons.savings_rounded,
+                              color: Colors.purple,
+                              sub: 'Margin ${d.margin.toStringAsFixed(1)}%',
+                              onTap: () => Details.profit(context, _from, _to)),
+                          StatCard(
+                              title: 'Pengeluaran',
+                              value: rp(d.expense),
+                              icon: Icons.payments_rounded,
+                              color: Colors.red,
+                              onTap: () => Details.expenses(context, _from, _to)),
                           StatCard(
                               title: d.net >= 0 ? 'Laba bersih' : 'Rugi bersih',
                               value: rp(d.net),
                               icon: Icons.account_balance_wallet_rounded,
-                              color: d.net >= 0 ? Colors.teal : Colors.red),
+                              color: d.net >= 0 ? Colors.teal : Colors.red,
+                              onTap: () => Details.profitLoss(context, _from, _to)),
                         ],
                         if (app.can('perm_purchase'))
-                          StatCard(title: 'Pembelian barang', value: rp(d.purchase), icon: Icons.local_shipping_rounded, color: Colors.indigo, sub: '${d.purchaseCount} nota'),
-                        if (d.voidCount > 0) StatCard(title: 'Transaksi batal', value: nf(d.voidCount), icon: Icons.block_rounded, color: Colors.grey),
+                          StatCard(
+                              title: 'Pembelian barang',
+                              value: rp(d.purchase),
+                              icon: Icons.local_shipping_rounded,
+                              color: Colors.indigo,
+                              sub: '${d.purchaseCount} nota',
+                              onTap: () => Details.purchases(context, _from, _to)),
+                        if (d.voidCount > 0)
+                          StatCard(
+                              title: 'Transaksi batal',
+                              value: nf(d.voidCount),
+                              icon: Icons.block_rounded,
+                              color: Colors.grey,
+                              onTap: () => Details.sales(context, _from, _to, title: 'Transaksi Dibatalkan', onlyVoid: true)),
                       ],
                     ),
                     if (d.daily.length > 1) ...[
@@ -190,10 +236,15 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                       ),
                     ],
-                    _section('PER METODE BAYAR', d.byMethod, (e) => '${e.count} trx', (e) => rp(e.total)),
-                    _section('PER KASIR', d.byCashier, (e) => '${e.count} trx', (e) => rp(e.total)),
-                    _section('BARANG TERLARIS', d.topItems.take(30).toList(), (e) => 'Terjual ${fq(e.qty)}', (e) => rp(e.total), numbered: true),
-                    if (owner || app.can('perm_expense')) _section('PENGELUARAN', d.expenseByCat, (e) => '${e.count} kali', (e) => rp(e.total)),
+                    _section('PER METODE BAYAR', d.byMethod, (e) => '${e.count} trx', (e) => rp(e.total),
+                        onTap: (e) => Details.sales(context, _from, _to, title: 'Pembayaran ${e.name}', method: e.name)),
+                    _section('PER KASIR', d.byCashier, (e) => '${e.count} trx', (e) => rp(e.total),
+                        onTap: (e) => Details.sales(context, _from, _to, title: 'Transaksi ${e.name}', user: e.name)),
+                    _section('BARANG TERLARIS', d.topItems.take(30).toList(), (e) => 'Terjual ${fq(e.qty)}', (e) => rp(e.total),
+                        numbered: true, onTap: (e) => Details.sales(context, _from, _to, title: e.name, item: e.name)),
+                    if (owner || app.can('perm_expense'))
+                      _section('PENGELUARAN', d.expenseByCat, (e) => '${e.count} kali', (e) => rp(e.total),
+                          onTap: (e) => Details.expenses(context, _from, _to)),
                   ]),
                 ),
         ),
@@ -201,7 +252,8 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  Widget _section(String title, List<NameTotal> items, String Function(NameTotal) sub, String Function(NameTotal) val, {bool numbered = false}) {
+  Widget _section(String title, List<NameTotal> items, String Function(NameTotal) sub, String Function(NameTotal) val,
+      {bool numbered = false, void Function(NameTotal)? onTap}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SectionTitle(title),
       SoftCard(
@@ -216,6 +268,8 @@ class _ReportScreenState extends State<ReportScreen> {
                     title: Text(items[i].name.isEmpty ? '-' : items[i].name, style: const TextStyle(fontWeight: FontWeight.w700)),
                     subtitle: Text(sub(items[i])),
                     trailing: Text(val(items[i]), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    visualDensity: VisualDensity.compact,
+                    onTap: onTap == null ? null : () => onTap(items[i]),
                   ),
               ]),
       ),

@@ -196,46 +196,78 @@ class StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String? sub;
+  final VoidCallback? onTap;
 
-  const StatCard({super.key, required this.title, required this.value, required this.icon, required this.color, this.sub});
+  const StatCard({super.key, required this.title, required this.value, required this.icon, required this.color, this.sub, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withOpacity(0.45),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color),
+    return Material(
+      color: cs.surfaceContainerHighest.withOpacity(0.45),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.15), maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant, height: 1.1), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.2)),
+                    ),
+                    if (sub != null)
+                      Text(sub!, style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant, height: 1.1), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
                 ),
-                if (sub != null)
-                  Text(sub!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ],
-            ),
+              ),
+              if (onTap != null) Icon(Icons.chevron_right_rounded, size: 16, color: cs.outline),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+/// Susunan kartu angka: tinggi mengikuti isi (tanpa ruang kosong)
+class StatGrid extends StatelessWidget {
+  final List<Widget> children;
+  final int columns;
+  final double gap;
+  const StatGrid({super.key, required this.children, this.columns = 2, this.gap = 8});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i += columns) {
+      final cells = <Widget>[];
+      for (var j = 0; j < columns; j++) {
+        if (j > 0) cells.add(SizedBox(width: gap));
+        cells.add(Expanded(child: i + j < children.length ? children[i + j] : const SizedBox()));
+      }
+      if (rows.isNotEmpty) rows.add(SizedBox(height: gap));
+      rows.add(IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: cells)));
+    }
+    return Column(mainAxisSize: MainAxisSize.min, children: rows);
   }
 }
 
@@ -247,7 +279,7 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
       child: Row(
         children: [
           Expanded(
@@ -266,7 +298,7 @@ class SoftCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
-  const SoftCard({super.key, required this.child, this.padding = const EdgeInsets.all(14), this.onTap});
+  const SoftCard({super.key, required this.child, this.padding = const EdgeInsets.all(12), this.onTap});
 
   @override
   Widget build(BuildContext context) {

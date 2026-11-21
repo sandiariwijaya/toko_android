@@ -10,6 +10,7 @@ import '../services/stock_alert.dart';
 import '../utils/format.dart';
 import '../utils/notify.dart';
 import '../widgets/common.dart';
+import '../widgets/details.dart';
 import '../widgets/scanner.dart';
 import 'barcode_screen.dart';
 import 'product_form.dart';
@@ -198,7 +199,9 @@ class _StockScreenState extends State<StockScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     if (_ver != app.dataVersion) {
-      if (_ver != -1) _load();
+      if (_ver != -1) WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
       _ver = app.dataVersion;
     }
     final canStock = app.can('perm_stock');
@@ -262,19 +265,19 @@ class _StockScreenState extends State<StockScreen> with SingleTickerProviderStat
           ? const Center(child: CircularProgressIndicator())
           : Column(children: [
               SizedBox(
-                height: 86,
-                child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), children: [
-                  SizedBox(width: 170, child: StatCard(title: 'Jenis barang', value: nf(_sum['count'] ?? 0), icon: Icons.inventory_2_rounded, color: Colors.blue)),
+                height: 70,
+                child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 6, 12, 2), children: [
+                  SizedBox(width: 170, child: StatCard(title: 'Jenis barang', value: nf(_sum['count'] ?? 0), icon: Icons.inventory_2_rounded, color: Colors.blue, onTap: () => Details.stock(context))),
                   const SizedBox(width: 8),
-                  SizedBox(width: 170, child: StatCard(title: 'Menipis', value: nf(_sum['low'] ?? 0), icon: Icons.warning_amber_rounded, color: Colors.orange)),
+                  SizedBox(width: 170, child: StatCard(title: 'Menipis', value: nf(_sum['low'] ?? 0), icon: Icons.warning_amber_rounded, color: Colors.orange, onTap: () => Details.stock(context, mode: 'low'))),
                   const SizedBox(width: 8),
-                  SizedBox(width: 170, child: StatCard(title: 'Habis', value: nf(_sum['empty'] ?? 0), icon: Icons.remove_shopping_cart_rounded, color: Colors.red)),
+                  SizedBox(width: 170, child: StatCard(title: 'Habis', value: nf(_sum['empty'] ?? 0), icon: Icons.remove_shopping_cart_rounded, color: Colors.red, onTap: () => Details.stock(context, mode: 'empty'))),
                   if (app.can('perm_buy_price')) ...[
                     const SizedBox(width: 8),
-                    SizedBox(width: 200, child: StatCard(title: 'Nilai stok (modal)', value: rp(_sum['value_buy'] ?? 0), icon: Icons.account_balance_wallet_rounded, color: Colors.purple)),
+                    SizedBox(width: 200, child: StatCard(title: 'Nilai stok (modal)', value: rp(_sum['value_buy'] ?? 0), icon: Icons.account_balance_wallet_rounded, color: Colors.purple, onTap: () => Details.stock(context, mode: 'value'))),
                   ],
                   const SizedBox(width: 8),
-                  SizedBox(width: 200, child: StatCard(title: 'Nilai stok (jual)', value: rp(_sum['value_sell'] ?? 0), icon: Icons.sell_rounded, color: Colors.teal)),
+                  SizedBox(width: 200, child: StatCard(title: 'Nilai stok (jual)', value: rp(_sum['value_sell'] ?? 0), icon: Icons.sell_rounded, color: Colors.teal, onTap: () => Details.stock(context, mode: 'value'))),
                 ]),
               ),
               Padding(

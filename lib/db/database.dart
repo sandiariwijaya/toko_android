@@ -805,6 +805,19 @@ class Repo {
     return d;
   }
 
+  /// Laba per barang: (nama, qty, omzet, laba)
+  static Future<List<(String, double, int, int)>> itemProfit(DateTime from, DateTime to) async {
+    final db = await Db.instance;
+    final r = await db.rawQuery(
+        'SELECT i.name, SUM(i.qty) q, SUM(i.subtotal) t, SUM(i.subtotal - CAST(ROUND(i.buy_price * i.qty) AS INTEGER)) l FROM sale_items i '
+        'JOIN sales s ON s.id=i.sale_id WHERE s.status=0 AND s.created_at BETWEEN ? AND ? GROUP BY i.name ORDER BY l DESC',
+        ['${dbDay(from)} 00:00:00', '${dbDay(to)} 23:59:59']);
+    return r
+        .map((e) => ((e['name'] ?? '').toString(), (e['q'] as num?)?.toDouble() ?? 0, (e['t'] as num?)?.toInt() ?? 0,
+            (e['l'] as num?)?.toInt() ?? 0))
+        .toList();
+  }
+
   // ============================ LOG ============================
   static Future<List<LogEntry>> logs({DateTime? from, DateTime? to, String type = '', String q = '', int limit = 1000}) async {
     final db = await Db.instance;

@@ -198,7 +198,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     if (_ver != app.dataVersion) {
-      if (_ver != -1) _load();
+      if (_ver != -1) WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
       _ver = app.dataVersion;
     }
     final list = _filtered;

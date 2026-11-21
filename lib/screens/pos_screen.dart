@@ -501,7 +501,9 @@ class _PosScreenState extends State<PosScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     if (_ver != app.dataVersion) {
-      if (_ver != -1) _load();
+      if (_ver != -1) WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
       _ver = app.dataVersion;
     }
     final tablet = app.isTablet(context);
@@ -650,9 +652,9 @@ class _PosScreenState extends State<PosScreen> {
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: cols,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          mainAxisExtent: 168,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          mainAxisExtent: 150,
         ),
         itemCount: products.length,
         itemBuilder: (_, i) {
@@ -667,14 +669,14 @@ class _PosScreenState extends State<PosScreen> {
               onTap: () => _add(p),
               onLongPress: () => _quickEdit(p),
               child: Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: inCart > 0 ? cs.primary : cs.outlineVariant.withOpacity(0.45), width: inCart > 0 ? 2 : 1),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    ProductAvatar(p.name, size: 40),
+                    ProductAvatar(p.name, size: 34),
                     const Spacer(),
                     if (inCart > 0)
                       Container(
@@ -683,7 +685,7 @@ class _PosScreenState extends State<PosScreen> {
                         child: Text(fq(inCart), style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.w800, fontSize: 12)),
                       ),
                   ]),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Expanded(
                     child: Text(p.name, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.2)),
                   ),
@@ -712,8 +714,8 @@ class _PosScreenState extends State<PosScreen> {
             borderRadius: BorderRadius.circular(20),
             onTap: _openCartSheet,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(children: [
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(mainAxisSize: MainAxisSize.max, children: [
                 Badge(
                   label: Text(fq(_items)),
                   backgroundColor: cs.onPrimary,
@@ -722,7 +724,7 @@ class _PosScreenState extends State<PosScreen> {
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${_cart.length} jenis barang', style: TextStyle(color: cs.onPrimary.withOpacity(0.85), fontSize: 12)),
                     Text(rp(_total), style: TextStyle(color: cs.onPrimary, fontSize: 20, fontWeight: FontWeight.w900)),
                   ]),
