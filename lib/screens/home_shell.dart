@@ -97,8 +97,10 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final list = _dests(app);
-    if (!list.any((e) => e.id == _current)) _current = 'home';
     final tablet = app.isTablet(context);
+    // 'more' = halaman Menu (khusus layout HP), bukan bagian dari daftar halaman
+    final valid = list.any((e) => e.id == _current) || (_current == 'more' && !tablet);
+    if (!valid) _current = 'home';
     final cs = Theme.of(context).colorScheme;
 
     if (tablet) {
