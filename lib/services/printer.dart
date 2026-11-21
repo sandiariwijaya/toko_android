@@ -142,7 +142,7 @@ class Receipts {
     final logo = app.logo;
     final withLogo = logo != null && app.b('rc_show_logo');
     if (withLogo) {
-      final data = LogoService.escPos(logo, paperDots: app.get('pr_paper') == '80' ? 576 : 384, widthPct: app.i('rc_logo_width', 60));
+      final data = LogoService.escPos(logo!, paperDots: app.get('pr_paper') == '80' ? 576 : 384, widthPct: app.i('rc_logo_width', 60));
       if (data.isNotEmpty) out.add(PImage(data));
     }
     if (!withLogo || app.b('rc_show_name')) out.addAll(_title(app, f, w));
