@@ -43,6 +43,7 @@ class AppState extends ChangeNotifier {
     KasirPerm('perm_products', 'Tambah / ubah data barang', false),
     KasirPerm('perm_stock', 'Stok opname / penyesuaian stok', false),
     KasirPerm('perm_expense', 'Catat pengeluaran', true),
+    KasirPerm('perm_return', 'Retur penjualan & pembelian', false),
     KasirPerm('perm_report', 'Lihat laporan penjualan (tanpa laba)', false),
     KasirPerm('perm_reprint', 'Cetak ulang struk', true),
     KasirPerm('perm_buy_price', 'Melihat harga beli / modal', false),

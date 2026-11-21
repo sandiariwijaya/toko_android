@@ -235,6 +235,41 @@ class Receipts {
     return out;
   }
 
+  static List<PItem> retur(AppState app, ReturnDoc x) {
+    final w = chars(app);
+    final f = TextFmt(w);
+    const a = TextFmt.ascii;
+    final out = x.isSale ? header(app) : _title(app, f, w);
+    out.add(PText(f.sep()));
+    out.add(PText(f.center(x.isSale ? 'NOTA RETUR PENJUALAN' : 'NOTA RETUR PEMBELIAN'), bold: true));
+    out.add(PText(f.kv('No', x.no)));
+    out.add(PText(f.kv('Tgl', '${fmtDateShort(x.createdAt)} ${fmtTime(x.createdAt)}')));
+    if (x.refNo.isNotEmpty) out.add(PText(f.kv(x.isSale ? 'Nota' : 'Beli', a(x.refNo))));
+    if (x.party.isNotEmpty) out.add(PText(f.kv(x.isSale ? 'Plgn' : 'Suppl', a(x.party))));
+    out.add(PText(f.kv('Oleh', a(x.userName))));
+    if (x.isVoid) out.add(PText(f.center('*** DIBATALKAN ***'), bold: true));
+    out.add(PText(f.sep()));
+    for (final it in x.items) {
+      for (final l in f.wrap(a(it.name))) {
+        out.add(PText(l));
+      }
+      out.add(PText(f.lr('  ${fq(it.qty)} x ${nf(it.price)}${x.isSale && it.cond == 'rusak' ? ' (rusak)' : ''}', nf(it.subtotal))));
+    }
+    out.add(PText(f.sep()));
+    out.add(PText(f.lr('TOTAL RETUR', nf(x.total)), bold: true, big: true));
+    out.add(PText(f.lr('Penyelesaian', a(x.settleLabel))));
+    if (x.note.trim().isNotEmpty) {
+      for (final l in f.wrap('Ket: ${a(x.note.trim())}')) {
+        out.add(PText(l));
+      }
+    }
+    out.add(PFeed(1));
+    out.add(PText(f.lr('Penerima', 'Petugas')));
+    out.add(PFeed(2));
+    out.add(PText(f.lr('(..........)', '(..........)')));
+    return out;
+  }
+
   static List<PItem> testPage(AppState app) {
     final w = chars(app);
     final f = TextFmt(w);
@@ -276,6 +311,10 @@ class Receipts {
     if (d.discount > 0) out.add(PText(f.lr('Diskon', '-${nf(d.discount)}')));
     out.add(PText(f.lr('TOTAL PENJUALAN', nf(d.total)), bold: true));
     out.add(PText(f.lr('Rata-rata/transaksi', nf(d.average))));
+    if (d.returnSales > 0) {
+      out.add(PText(f.lr('Retur penjualan (${d.returnCount})', '-${nf(d.returnSales)}')));
+      out.add(PText(f.lr('PENJUALAN BERSIH', nf(d.netSales)), bold: true));
+    }
     if (d.voidCount > 0) out.add(PText(f.lr('Transaksi batal', nf(d.voidCount))));
     out.add(PText(f.sep()));
     out.add(PText('Per metode bayar:', bold: true));
@@ -291,7 +330,7 @@ class Receipts {
     }
     if (withProfit) {
       out.add(PText(f.sep()));
-      out.add(PText(f.lr('Modal (HPP)', nf(d.hpp))));
+      out.add(PText(f.lr('Modal (HPP)', nf(d.hpp - d.returnHpp))));
       out.add(PText(f.lr('Laba kotor', nf(d.grossProfit)), bold: true));
       out.add(PText(f.lr('Pengeluaran', nf(d.expense))));
       out.add(PText(f.lr(d.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH', nf(d.net)), bold: true));
@@ -299,6 +338,7 @@ class Receipts {
     if (d.purchase > 0) {
       out.add(PText(f.sep()));
       out.add(PText(f.lr('Pembelian (${d.purchaseCount})', nf(d.purchase))));
+      if (d.returnPurchase > 0) out.add(PText(f.lr('Retur pembelian', '-${nf(d.returnPurchase)}')));
     }
     if (d.topItems.isNotEmpty) {
       out.add(PText(f.sep()));

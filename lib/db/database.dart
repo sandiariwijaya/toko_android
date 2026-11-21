@@ -35,12 +35,30 @@ class Db {
   static Future<Database> _open() async {
     return openDatabase(
       await path(),
-      version: 1,
+      version: 2,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = OFF');
       },
-      onCreate: (db, v) async => _create(db),
+      onCreate: (db, v) async {
+        await _create(db);
+        await _createV2(db);
+      },
+      onUpgrade: (db, oldV, newV) async {
+        if (oldV < 2) await _createV2(db);
+      },
     );
+  }
+
+  /// Versi 2: tabel retur penjualan & pembelian
+  static Future<void> _createV2(Database db) async {
+    await db.execute('CREATE TABLE IF NOT EXISTS returns(id INTEGER PRIMARY KEY AUTOINCREMENT, return_no TEXT, type TEXT, '
+        'ref_id INTEGER, ref_no TEXT, created_at TEXT, user_name TEXT, party TEXT, total INTEGER, settle TEXT, note TEXT, '
+        'status INTEGER DEFAULT 0, void_reason TEXT)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_ret_date ON returns(created_at)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_ret_ref ON returns(type, ref_id)');
+    await db.execute('CREATE TABLE IF NOT EXISTS return_items(id INTEGER PRIMARY KEY AUTOINCREMENT, return_id INTEGER, product_id INTEGER, '
+        'name TEXT, unit TEXT, qty REAL, price INTEGER, buy_price INTEGER, subtotal INTEGER, cond TEXT)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_ri_ret ON return_items(return_id)');
   }
 
   static Future<void> _create(Database db) async {
@@ -788,6 +806,18 @@ class Repo {
     d.purchaseCount = (pb.first['n'] as num?)?.toInt() ?? 0;
     d.purchase = (pb.first['t'] as num?)?.toInt() ?? 0;
 
+    final rj = await db.rawQuery(
+        "SELECT COUNT(*) n, IFNULL(SUM(total),0) t FROM returns WHERE type='jual' AND status=0 AND created_at BETWEEN ? AND ?", [a, b]);
+    d.returnCount = (rj.first['n'] as num?)?.toInt() ?? 0;
+    d.returnSales = (rj.first['t'] as num?)?.toInt() ?? 0;
+    final rh = await db.rawQuery(
+        "SELECT IFNULL(SUM(ri.buy_price*ri.qty),0) h FROM return_items ri JOIN returns r ON r.id=ri.return_id "
+        "WHERE r.type='jual' AND r.status=0 AND ri.cond='bagus' AND r.created_at BETWEEN ? AND ?", [a, b]);
+    d.returnHpp = (rh.first['h'] as num?)?.round() ?? 0;
+    final rb = await db.rawQuery(
+        "SELECT IFNULL(SUM(total),0) t FROM returns WHERE type='beli' AND status=0 AND created_at BETWEEN ? AND ?", [a, b]);
+    d.returnPurchase = (rb.first['t'] as num?)?.toInt() ?? 0;
+
     final dl = await db.rawQuery('SELECT substr(created_at,1,10) d, COUNT(*) n, SUM(total) t FROM sales WHERE status=0 AND created_at BETWEEN ? AND ? '
         'GROUP BY substr(created_at,1,10) ORDER BY d', [a, b]);
     final map = {for (final e in dl) e['d'].toString(): e};
@@ -816,6 +846,171 @@ class Repo {
         .map((e) => ((e['name'] ?? '').toString(), (e['q'] as num?)?.toDouble() ?? 0, (e['t'] as num?)?.toInt() ?? 0,
             (e['l'] as num?)?.toInt() ?? 0))
         .toList();
+  }
+
+  // ============================ RETUR ============================
+  /// Jumlah yang sudah diretur per barang untuk satu nota (product_id -> qty)
+  static Future<Map<int, double>> returnedQty(String type, int refId) async {
+    final db = await Db.instance;
+    final r = await db.rawQuery(
+        'SELECT ri.product_id, SUM(ri.qty) q FROM return_items ri JOIN returns r ON r.id=ri.return_id '
+        'WHERE r.type=? AND r.ref_id=? AND r.status=0 GROUP BY ri.product_id',
+        [type, refId]);
+    return {for (final e in r) (e['product_id'] as int? ?? 0): (e['q'] as num?)?.toDouble() ?? 0};
+  }
+
+  static Future<ReturnDoc> createReturn({
+    required String type, // jual | beli
+    int? refId,
+    String refNo = '',
+    String party = '',
+    required List<ReturnLine> lines,
+    required String settle,
+    String note = '',
+    required String user,
+  }) async {
+    final db = await Db.instance;
+    return db.transaction((tx) async {
+      final now = DateTime.now();
+      final prefix = type == 'jual' ? 'RJ' : 'RB';
+      final day = '${now.year % 100}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final n = Sqflite.firstIntValue(
+              await tx.rawQuery('SELECT COUNT(*) FROM returns WHERE type=? AND created_at LIKE ?', [type, '${dbDay(now)}%'])) ??
+          0;
+      var seq = n + 1;
+      var no = '$prefix$day-${seq.toString().padLeft(3, '0')}';
+      while ((await tx.query('returns', columns: ['id'], where: 'return_no=?', whereArgs: [no])).isNotEmpty) {
+        seq++;
+        no = '$prefix$day-${seq.toString().padLeft(3, '0')}';
+      }
+      final used = lines.where((l) => l.qty > 0).toList();
+      final total = used.fold<int>(0, (a, l) => a + l.subtotal);
+      final id = await tx.insert('returns', {
+        'return_no': no,
+        'type': type,
+        'ref_id': refId,
+        'ref_no': refNo,
+        'created_at': dbDateTime(now),
+        'user_name': user,
+        'party': party.trim(),
+        'total': total,
+        'settle': settle,
+        'note': note.trim(),
+        'status': 0,
+        'void_reason': '',
+      });
+      final items = <ReturnItem>[];
+      for (final l in used) {
+        final it = ReturnItem(
+          productId: l.productId,
+          name: l.name,
+          unit: l.unit,
+          qty: l.qty,
+          price: l.price,
+          buyPrice: l.buyPrice,
+          subtotal: l.subtotal,
+          cond: type == 'jual' ? l.cond : 'bagus',
+        );
+        items.add(it);
+        await tx.insert('return_items', {
+          'return_id': id,
+          'product_id': it.productId,
+          'name': it.name,
+          'unit': it.unit,
+          'qty': it.qty,
+          'price': it.price,
+          'buy_price': it.buyPrice,
+          'subtotal': it.subtotal,
+          'cond': it.cond,
+        });
+        if (it.productId <= 0) continue;
+        // retur jual kondisi bagus: stok bertambah. retur beli: stok berkurang. rusak: stok tetap.
+        double change = 0;
+        if (type == 'jual' && it.cond == 'bagus') change = it.qty;
+        if (type == 'beli') change = -it.qty;
+        if (change == 0) continue;
+        await tx.rawUpdate('UPDATE products SET stock=stock+?, updated_at=? WHERE id=?', [change, dbDateTime(now), it.productId]);
+        final r = await tx.query('products', columns: ['stock'], where: 'id=?', whereArgs: [it.productId]);
+        if (r.isEmpty) continue;
+        await _move(tx, it.productId, it.name, type == 'jual' ? 'retur-jual' : 'retur-beli', change,
+            (r.first['stock'] as num?)?.toDouble() ?? 0, no, user, refNo);
+      }
+      return ReturnDoc(
+        id: id,
+        no: no,
+        type: type,
+        refId: refId,
+        refNo: refNo,
+        createdAt: now,
+        userName: user,
+        party: party.trim(),
+        total: total,
+        settle: settle,
+        note: note.trim(),
+        items: items,
+      );
+    });
+  }
+
+  static Future<List<ReturnDoc>> returns(DateTime from, DateTime to, {String type = '', bool withItems = true}) async {
+    final db = await Db.instance;
+    final args = <Object?>['${dbDay(from)} 00:00:00', '${dbDay(to)} 23:59:59'];
+    var where = 'created_at BETWEEN ? AND ?';
+    if (type.isNotEmpty) {
+      where += ' AND type=?';
+      args.add(type);
+    }
+    final r = await db.query('returns', where: where, whereArgs: args, orderBy: 'id DESC');
+    final list = r.map(ReturnDoc.fromMap).toList();
+    if (withItems && list.isNotEmpty) {
+      final ids = list.map((e) => e.id).join(',');
+      final it = await db.rawQuery('SELECT * FROM return_items WHERE return_id IN ($ids) ORDER BY id');
+      final map = <int, List<ReturnItem>>{};
+      for (final m in it) {
+        map.putIfAbsent(m['return_id'] as int, () => []).add(ReturnItem.fromMap(m));
+      }
+      for (final x in list) {
+        x.items = map[x.id] ?? [];
+      }
+    }
+    return list;
+  }
+
+  static Future<List<ReturnDoc>> returnsForRef(String type, int refId) async {
+    final db = await Db.instance;
+    final r = await db.query('returns', where: 'type=? AND ref_id=?', whereArgs: [type, refId], orderBy: 'id');
+    return r.map(ReturnDoc.fromMap).toList();
+  }
+
+  static Future<ReturnDoc?> returnById(int id) async {
+    final db = await Db.instance;
+    final r = await db.query('returns', where: 'id=?', whereArgs: [id]);
+    if (r.isEmpty) return null;
+    final x = ReturnDoc.fromMap(r.first);
+    final it = await db.query('return_items', where: 'return_id=?', whereArgs: [id], orderBy: 'id');
+    x.items = it.map(ReturnItem.fromMap).toList();
+    return x;
+  }
+
+  /// Batalkan retur: perubahan stok dikembalikan seperti semula
+  static Future<void> voidReturn(ReturnDoc x, String reason, String user) async {
+    final db = await Db.instance;
+    await db.transaction((tx) async {
+      final cur = await tx.query('returns', columns: ['status'], where: 'id=?', whereArgs: [x.id]);
+      if (cur.isEmpty || (cur.first['status'] as int? ?? 0) == 1) return;
+      await tx.update('returns', {'status': 1, 'void_reason': reason}, where: 'id=?', whereArgs: [x.id]);
+      for (final it in x.items) {
+        if (it.productId <= 0) continue;
+        double change = 0;
+        if (x.isSale && it.cond == 'bagus') change = -it.qty;
+        if (!x.isSale) change = it.qty;
+        if (change == 0) continue;
+        await tx.rawUpdate('UPDATE products SET stock=stock+? WHERE id=?', [change, it.productId]);
+        final r = await tx.query('products', columns: ['stock'], where: 'id=?', whereArgs: [it.productId]);
+        if (r.isEmpty) continue;
+        await _move(tx, it.productId, it.name, 'batal-retur', change, (r.first['stock'] as num?)?.toDouble() ?? 0, x.no, user, reason);
+      }
+    });
   }
 
   // ============================ LOG ============================

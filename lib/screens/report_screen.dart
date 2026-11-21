@@ -186,7 +186,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         if (owner) ...[
                           StatCard(
                               title: 'Modal (HPP)',
-                              value: rp(d.hpp),
+                              value: rp(d.hpp - d.returnHpp),
                               icon: Icons.inventory_rounded,
                               color: Colors.brown,
                               onTap: () => Details.profit(context, _from, _to)),
@@ -218,6 +218,21 @@ class _ReportScreenState extends State<ReportScreen> {
                               color: Colors.indigo,
                               sub: '${d.purchaseCount} nota',
                               onTap: () => Details.purchases(context, _from, _to)),
+                        if (d.returnSales > 0)
+                          StatCard(
+                              title: 'Retur penjualan',
+                              value: '-${rp(d.returnSales)}',
+                              icon: Icons.assignment_return_rounded,
+                              color: Colors.deepOrange,
+                              sub: 'Bersih ${rp(d.netSales)}',
+                              onTap: () => Details.returns(context, _from, _to)),
+                        if (d.returnPurchase > 0 && app.can('perm_purchase'))
+                          StatCard(
+                              title: 'Retur ke supplier',
+                              value: rp(d.returnPurchase),
+                              icon: Icons.keyboard_return_rounded,
+                              color: Colors.brown,
+                              onTap: () => Details.returns(context, _from, _to, type: 'beli')),
                         if (d.voidCount > 0)
                           StatCard(
                               title: 'Transaksi batal',

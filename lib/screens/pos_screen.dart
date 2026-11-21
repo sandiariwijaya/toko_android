@@ -28,6 +28,10 @@ class PosScreen extends StatefulWidget {
 
   static final List<HeldCart> held = [];
 
+  /// Potongan dari retur "tukar barang" (dipakai di transaksi berikutnya)
+  static int returCredit = 0;
+  static String returCreditNo = '';
+
   @override
   State<PosScreen> createState() => _PosScreenState();
 }
@@ -80,7 +84,8 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   int get _subtotal => _cart.fold<int>(0, (a, l) => a + l.subtotal);
-  int get _total => (_subtotal - _discount) < 0 ? 0 : _subtotal - _discount;
+  int get _credit => PosScreen.returCredit;
+  int get _total => (_subtotal - _discount - _credit) < 0 ? 0 : _subtotal - _discount - _credit;
   double get _items => _cart.fold<double>(0, (a, l) => a + l.qty);
 
   double _inCart(Product p) => _cart.where((l) => l.product.id == p.id).fold<double>(0, (a, l) => a + l.qty);
@@ -437,18 +442,22 @@ class _PosScreenState extends State<PosScreen> {
       final lines = List<CartLine>.of(_cart.reversed);
       final sale = await Repo.createSale(
         lines: lines,
-        discount: _discount,
+        discount: (_discount + _credit) > _subtotal ? _subtotal : _discount + _credit,
         paid: res.paid,
         method: res.method,
         user: app.userName,
         customer: res.customer,
-        note: res.note,
+        note: _credit > 0
+            ? 'Tukar barang retur ${PosScreen.returCreditNo} (${rp(_credit)})${res.note.trim().isEmpty ? '' : ' - ${res.note.trim()}'}'
+            : res.note,
         prefix: app.get('invoice_prefix').isEmpty ? 'TK' : app.get('invoice_prefix'),
       );
       await Activity.log('penjualan', 'Transaksi penjualan', '${sale.invoiceNo} • ${rp(sale.total)} • ${sale.method} • ${sale.items.length} barang');
       setState(() {
         _cart.clear();
         _discount = 0;
+        PosScreen.returCredit = 0;
+        PosScreen.returCreditNo = '';
       });
       if (res.print) PrinterService.printSale(app, sale);
       await StockAlert.afterChange(app, lines.map((e) => e.product));
@@ -866,6 +875,25 @@ class _PosScreenState extends State<PosScreen> {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
         child: Column(children: [
           Row(children: [const Expanded(child: Text('Subtotal')), Text(rp(_subtotal))]),
+          if (_credit > 0)
+            Row(children: [
+              Expanded(
+                child: Text('Potongan retur ${PosScreen.returCreditNo}',
+                    style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+              ),
+              Text('-${rp(_credit)}', style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.w700)),
+              InkWell(
+                onTap: () async {
+                  final ok = await confirmDialog(context,
+                      title: 'Hapus potongan retur?', message: 'Potongan ${rp(_credit)} tidak dipakai di transaksi ini.', okText: 'Hapus');
+                  if (!ok) return;
+                  PosScreen.returCredit = 0;
+                  PosScreen.returCreditNo = '';
+                  refresh();
+                },
+                child: const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.close_rounded, size: 18)),
+              ),
+            ]),
           InkWell(
             onTap: () async {
               await _setDiscount();

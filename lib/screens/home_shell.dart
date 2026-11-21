@@ -13,6 +13,7 @@ import 'pos_screen.dart';
 import 'products_screen.dart';
 import 'purchase_screen.dart';
 import 'report_screen.dart';
+import 'retur_screen.dart';
 import 'settings_screen.dart';
 import 'stock_screen.dart';
 import 'supplier_screen.dart';
@@ -67,6 +68,8 @@ class _HomeShellState extends State<HomeShell> {
         NavDest('products', Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Barang', () => const ProductsScreen()),
         NavDest('stock', Icons.warehouse_outlined, Icons.warehouse_rounded, 'Stok', () => const StockScreen()),
         NavDest('trx', Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Transaksi', () => const TransactionsScreen()),
+        if (app.can('perm_return'))
+          NavDest('retur', Icons.assignment_return_outlined, Icons.assignment_return_rounded, 'Retur', () => const ReturScreen()),
         if (app.can('perm_report'))
           NavDest('report', Icons.insert_chart_outlined_rounded, Icons.insert_chart_rounded, 'Laporan', () => const ReportScreen()),
         if (app.can('perm_expense'))

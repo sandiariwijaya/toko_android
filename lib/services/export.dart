@@ -163,8 +163,9 @@ class ReportExport {
       final d = await Repo.report(from, to);
       final list = await Repo.sales(from, to, withItems: true);
       final ex = await Repo.expenses(from, to);
+      final rets = await Repo.returns(from, to);
       final profit = app.isOwner;
-      final bytes = pdf ? await _salesPdf(app, d, list, ex, profit) : _salesXlsx(app, d, list, ex, profit);
+      final bytes = pdf ? await _salesPdf(app, d, list, ex, profit, rets) : _salesXlsx(app, d, list, ex, profit, rets);
       final name = 'Laporan_Penjualan_${_periodFile(from, to)}.${pdf ? 'pdf' : 'xlsx'}';
       await Activity.log('data', 'Export laporan penjualan ${pdf ? 'PDF' : 'Excel'}', period(from, to));
       await FileOut.saveAndOpen(bytes, name, pdf ? kPdfMime : kXlsxMime);
@@ -173,7 +174,7 @@ class ReportExport {
     }
   }
 
-  static Future<Uint8List> _salesPdf(AppState app, ReportData d, List<Sale> sales, List<Expense> ex, bool profit) {
+  static Future<Uint8List> _salesPdf(AppState app, ReportData d, List<Sale> sales, List<Expense> ex, bool profit, List<ReturnDoc> rets) {
     final x = _Pdf(app);
     final ok = sales.where((s) => !s.isVoid).toList();
     final body = <pw.Widget>[
@@ -183,9 +184,16 @@ class ReportExport {
         x.box('Item Terjual', fq(d.itemsSold)),
         x.box('Rata-rata', rp(d.average)),
       ]),
+      if (d.returnSales > 0)
+        pw.Row(children: [
+          x.box('Retur Penjualan', '-${rp(d.returnSales)}'),
+          x.box('Penjualan Bersih', rp(d.netSales)),
+          x.box('Jumlah Retur', nf(d.returnCount)),
+          x.box('Retur ke Supplier', rp(d.returnPurchase)),
+        ]),
       if (profit)
         pw.Row(children: [
-          x.box('Modal (HPP)', rp(d.hpp)),
+          x.box('Modal (HPP)', rp(d.hpp - d.returnHpp)),
           x.box('Laba Kotor', rp(d.grossProfit)),
           x.box('Pengeluaran', rp(d.expense)),
           x.box(d.net >= 0 ? 'Laba Bersih' : 'Rugi Bersih', rp(d.net)),
@@ -210,6 +218,22 @@ class ReportExport {
       x.table(['No', 'Barang', 'Qty', 'Total'], [
         for (var i = 0; i < d.topItems.length; i++) ['${i + 1}', d.topItems[i].name, fq(d.topItems[i].qty), nf(d.topItems[i].total)]
       ], right: {2, 3}, flex: [0.6, 5, 1.2, 1.6]),
+      if (rets.isNotEmpty) ...[
+        x.title('Retur'),
+        x.table(['No Retur', 'Tanggal', 'Jenis', 'Dari Nota', 'Barang', 'Penyelesaian', 'Total', 'Status'], [
+          for (final r in rets)
+            [
+              r.no,
+              fmtDateShort(r.createdAt),
+              r.isSale ? 'Penjualan' : 'Pembelian',
+              r.refNo,
+              r.items.map((e) => '${fq(e.qty)} ${e.name}${e.cond == 'rusak' ? ' (rusak)' : ''}').join(', '),
+              r.settleLabel,
+              nf(r.total),
+              r.isVoid ? 'BATAL' : 'OK',
+            ]
+        ], right: {6}, flex: [1.8, 1.3, 1.3, 1.8, 4, 1.8, 1.4, 1]),
+      ],
       if (ex.isNotEmpty) ...[
         x.title('Pengeluaran'),
         x.table(['Tanggal', 'Kategori', 'Keterangan', 'Nominal'], [for (final e in ex) [fmtDateShort(e.date), e.category, e.note, nf(e.amount)]],
@@ -221,7 +245,7 @@ class ReportExport {
     return x.doc('LAPORAN PENJUALAN', period(d.from, d.to), body);
   }
 
-  static Uint8List _salesXlsx(AppState app, ReportData d, List<Sale> sales, List<Expense> ex, bool profit) {
+  static Uint8List _salesXlsx(AppState app, ReportData d, List<Sale> sales, List<Expense> ex, bool profit, List<ReturnDoc> rets) {
     final wb = XlsxBuilder();
     final s1 = wb.sheet('Ringkasan', [32, 20]);
     s1.row([XC.title('LAPORAN PENJUALAN - ${app.get('store_name')}')]);
@@ -235,13 +259,16 @@ class ReportExport {
     s1.row([XC.bold('TOTAL PENJUALAN'), XC.numberBold(d.total)]);
     s1.row([XC.text('Rata-rata per transaksi'), XC.number(d.average)]);
     s1.row([XC.text('Transaksi dibatalkan'), XC.number(d.voidCount)]);
+    s1.row([XC.text('Retur penjualan (${d.returnCount})'), XC.number(-d.returnSales)]);
+    s1.row([XC.bold('PENJUALAN BERSIH'), XC.numberBold(d.netSales)]);
     if (profit) {
-      s1.row([XC.text('Modal (HPP)'), XC.number(d.hpp)]);
+      s1.row([XC.text('Modal (HPP)'), XC.number(d.hpp - d.returnHpp)]);
       s1.row([XC.bold('Laba kotor'), XC.numberBold(d.grossProfit)]);
       s1.row([XC.text('Pengeluaran'), XC.number(d.expense)]);
       s1.row([XC.bold(d.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH'), XC.numberBold(d.net)]);
     }
     s1.row([XC.text('Pembelian barang'), XC.number(d.purchase)]);
+    s1.row([XC.text('Retur ke supplier'), XC.number(d.returnPurchase)]);
     s1.row([]);
     s1.row([XC.header('Metode Bayar'), XC.header('Total')]);
     for (final m in d.byMethod) {
@@ -310,6 +337,32 @@ class ReportExport {
       s5.row([XC.text(dbDay(e.day)), XC.number(e.count), XC.number(e.total)]);
     }
 
+    if (rets.isNotEmpty) {
+      final s7 = wb.sheet('Retur', [16, 12, 11, 18, 18, 32, 8, 10, 13, 13, 18, 9, 24]);
+      s7.row([
+        for (final h in ['No Retur', 'Tanggal', 'Jenis', 'Dari Nota', 'Pelanggan/Supplier', 'Barang', 'Qty', 'Kondisi', 'Harga', 'Subtotal', 'Penyelesaian', 'Status', 'Keterangan'])
+          XC.header(h)
+      ]);
+      for (final r in rets) {
+        for (final it in r.items) {
+          s7.row([
+            XC.text(r.no),
+            XC.text(dbDay(r.createdAt)),
+            XC.text(r.isSale ? 'Penjualan' : 'Pembelian'),
+            XC.text(r.refNo),
+            XC.text(r.party),
+            XC.text(it.name),
+            XC.number(it.qty),
+            XC.text(r.isSale ? it.cond : '-'),
+            XC.number(it.price),
+            XC.number(it.subtotal),
+            XC.text(r.settleLabel),
+            XC.text(r.isVoid ? 'BATAL' : 'OK'),
+            XC.text(r.isVoid ? r.voidReason : r.note),
+          ]);
+        }
+      }
+    }
     if (ex.isNotEmpty) {
       final s6 = wb.sheet('Pengeluaran', [12, 20, 36, 15, 16]);
       s6.row([for (final h in ['Tanggal', 'Kategori', 'Keterangan', 'Nominal', 'Dicatat oleh']) XC.header(h)]);

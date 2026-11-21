@@ -7,6 +7,7 @@ import '../models.dart';
 import '../services/printer.dart';
 import '../utils/format.dart';
 import '../utils/notify.dart';
+import '../screens/retur_screen.dart';
 import 'common.dart';
 
 /// Satu baris data di lembar rincian
@@ -214,6 +215,23 @@ Future<void> showSaleDetail(BuildContext context, int id, {VoidCallback? onChang
         if (app.isOwner) kv('Laba', rp(s.total - s.hpp)),
         if (s.note.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Catatan: ${s.note}')),
         const SizedBox(height: 12),
+        if (!s.isVoid && app.can('perm_return'))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final ok = await returnFromSale(context, s.id);
+                  if (ok) onChanged?.call();
+                },
+                icon: const Icon(Icons.assignment_return_rounded),
+                label: const Text('Retur Barang dari Nota Ini'),
+              ),
+            ),
+          ),
         Row(children: [
           if (app.can('perm_reprint'))
             Expanded(
@@ -319,8 +337,9 @@ class Details {
       return [
         DataItem('Penjualan kotor', sub: '${d.trxCount} transaksi', trailing: rp(d.gross)),
         DataItem('Diskon', trailing: '-${rp(d.discount)}', color: Colors.red),
-        DataItem('Penjualan bersih', trailing: rp(d.total), bold: true),
-        DataItem('Modal barang terjual (HPP)', trailing: '-${rp(d.hpp)}', color: Colors.red),
+        if (d.returnSales > 0) DataItem('Retur penjualan', sub: '${d.returnCount} retur', trailing: '-${rp(d.returnSales)}', color: Colors.red),
+        DataItem('Penjualan bersih', trailing: rp(d.netSales), bold: true),
+        DataItem('Modal barang terjual (HPP)', sub: d.returnHpp > 0 ? 'sudah dikurangi retur ${rp(d.returnHpp)}' : '', trailing: '-${rp(d.hpp - d.returnHpp)}', color: Colors.red),
         DataItem('LABA KOTOR', sub: 'Margin ${d.margin.toStringAsFixed(1)}%', trailing: rp(d.grossProfit), bold: true, color: Colors.green.shade700),
         for (final e in d.expenseByCat) DataItem('Pengeluaran: ${e.name}', sub: '${e.count} kali', trailing: '-${rp(e.total)}', color: Colors.red),
         DataItem(d.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH', trailing: rp(d.net), bold: true, color: d.net >= 0 ? Colors.teal : Colors.red),
@@ -356,6 +375,21 @@ class Details {
         title: title,
         subtitle: period(from, to),
         load: () async => items.map((e) => DataItem(e.name.isEmpty ? '-' : e.name, sub: '${e.count} $unit', trailing: rp(e.total))).toList());
+  }
+
+  static Future<void> returns(BuildContext context, DateTime from, DateTime to, {String type = 'jual'}) {
+    return showDataSheet(context, title: type == 'jual' ? 'Retur Penjualan' : 'Retur Pembelian', subtitle: period(from, to), load: () async {
+      final l = await Repo.returns(from, to, type: type);
+      return l
+          .map((x) => DataItem(
+                '${x.no}${x.refNo.isEmpty ? '' : ' • ${x.refNo}'}',
+                sub: '${fmtDateShort(x.createdAt)} • ${x.settleLabel} • ${x.items.map((e) => '${fq(e.qty)} ${e.name}').join(', ')}',
+                trailing: rp(x.total),
+                strike: x.isVoid,
+                onTap: () => showReturnDetail(context, x.id),
+              ))
+          .toList();
+    });
   }
 
   /// mode: all | low | empty | value

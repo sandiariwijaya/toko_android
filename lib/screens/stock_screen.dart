@@ -23,6 +23,9 @@ const Map<String, String> kMoveLabel = {
   'awal': 'Stok awal',
   'batal-jual': 'Batal penjualan',
   'batal-beli': 'Batal pembelian',
+  'retur-jual': 'Retur penjualan',
+  'retur-beli': 'Retur ke supplier',
+  'batal-retur': 'Batal retur',
 };
 
 class StockScreen extends StatefulWidget {

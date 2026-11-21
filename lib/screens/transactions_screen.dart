@@ -9,6 +9,7 @@ import '../utils/format.dart';
 import '../utils/notify.dart';
 import '../widgets/common.dart';
 import '../widgets/details.dart';
+import 'retur_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -94,7 +95,24 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
           const Divider(height: 20),
           _kv('TOTAL', rp(pb.total), bold: true),
           if (pb.note.isNotEmpty) Text('Catatan: ${pb.note}'),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
+          if (!pb.isVoid && app.can('perm_return'))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange),
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    final ok = await returnFromPurchase(context, pb.id);
+                    if (ok) _load();
+                  },
+                  icon: const Icon(Icons.assignment_return_rounded),
+                  label: const Text('Retur ke Supplier'),
+                ),
+              ),
+            ),
           Row(children: [
             Expanded(
               child: FilledButton.tonalIcon(

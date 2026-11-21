@@ -400,6 +400,10 @@ class ReportData {
   int purchase = 0;
   int purchaseCount = 0;
   int voidCount = 0;
+  int returnSales = 0; // nilai retur penjualan (uang/potongan ke pelanggan)
+  int returnHpp = 0; // modal barang retur yang kembali ke stok (kondisi bagus)
+  int returnCount = 0;
+  int returnPurchase = 0; // nilai retur pembelian ke supplier
   double itemsSold = 0;
   List<NameTotal> byMethod = [];
   List<NameTotal> byCashier = [];
@@ -409,8 +413,128 @@ class ReportData {
 
   ReportData(this.from, this.to);
 
-  int get grossProfit => total - hpp;
+  /// Penjualan setelah dikurangi retur
+  int get netSales => total - returnSales;
+  int get grossProfit => netSales - (hpp - returnHpp);
   int get net => grossProfit - expense;
   int get average => trxCount == 0 ? 0 : (total / trxCount).round();
-  double get margin => total == 0 ? 0 : grossProfit * 100 / total;
+  double get margin => netSales == 0 ? 0 : grossProfit * 100 / netSales;
+}
+
+// ============================ RETUR ============================
+/// Baris isian retur (di form)
+class ReturnLine {
+  final int productId;
+  final String name;
+  final String unit;
+  final double maxQty; // jumlah maksimal yang boleh diretur
+  final int price; // nilai per satuan (harga jual bersih / harga beli)
+  final int buyPrice;
+  double qty;
+  String cond; // bagus | rusak
+  ReturnLine({
+    required this.productId,
+    required this.name,
+    required this.unit,
+    required this.maxQty,
+    required this.price,
+    required this.buyPrice,
+    this.qty = 0,
+    this.cond = 'bagus',
+  });
+
+  int get subtotal => (price * qty).round();
+}
+
+class ReturnItem {
+  final int productId;
+  final String name;
+  final String unit;
+  final double qty;
+  final int price;
+  final int buyPrice;
+  final int subtotal;
+  final String cond;
+  ReturnItem({
+    required this.productId,
+    required this.name,
+    this.unit = '',
+    required this.qty,
+    required this.price,
+    this.buyPrice = 0,
+    required this.subtotal,
+    this.cond = 'bagus',
+  });
+
+  factory ReturnItem.fromMap(Map<String, Object?> m) => ReturnItem(
+        productId: _i(m['product_id']),
+        name: _s(m['name']),
+        unit: _s(m['unit']),
+        qty: _d(m['qty']),
+        price: _i(m['price']),
+        buyPrice: _i(m['buy_price']),
+        subtotal: _i(m['subtotal']),
+        cond: _s(m['cond']).isEmpty ? 'bagus' : _s(m['cond']),
+      );
+}
+
+class ReturnDoc {
+  final int id;
+  final String no;
+  final String type; // jual | beli
+  final int? refId;
+  final String refNo;
+  final DateTime createdAt;
+  final String userName;
+  final String party; // pelanggan / supplier
+  final int total;
+  final String settle; // uang | tukar | potong | ganti
+  final String note;
+  final int status;
+  final String voidReason;
+  List<ReturnItem> items;
+
+  ReturnDoc({
+    required this.id,
+    required this.no,
+    required this.type,
+    this.refId,
+    this.refNo = '',
+    required this.createdAt,
+    this.userName = '',
+    this.party = '',
+    required this.total,
+    this.settle = 'uang',
+    this.note = '',
+    this.status = 0,
+    this.voidReason = '',
+    List<ReturnItem>? items,
+  }) : items = items ?? [];
+
+  bool get isSale => type == 'jual';
+  bool get isVoid => status == 1;
+
+  static const Map<String, String> settleLabels = {
+    'uang': 'Uang dikembalikan',
+    'tukar': 'Tukar barang',
+    'potong': 'Potong tagihan',
+    'ganti': 'Diganti barang baru',
+  };
+  String get settleLabel => settleLabels[settle] ?? settle;
+
+  factory ReturnDoc.fromMap(Map<String, Object?> m) => ReturnDoc(
+        id: _i(m['id']),
+        no: _s(m['return_no']),
+        type: _s(m['type']),
+        refId: m['ref_id'] == null ? null : _i(m['ref_id']),
+        refNo: _s(m['ref_no']),
+        createdAt: parseDb(_s(m['created_at'])),
+        userName: _s(m['user_name']),
+        party: _s(m['party']),
+        total: _i(m['total']),
+        settle: _s(m['settle']),
+        note: _s(m['note']),
+        status: _i(m['status']),
+        voidReason: _s(m['void_reason']),
+      );
 }
