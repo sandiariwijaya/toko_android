@@ -9,6 +9,7 @@ import '../db/database.dart';
 import '../models.dart';
 import '../services/activation.dart';
 import '../services/backup.dart';
+import '../services/logo.dart';
 import '../services/native.dart';
 import '../services/printer.dart';
 import '../services/stock_alert.dart';
@@ -115,6 +116,135 @@ class _StoreSettingsState extends State<StoreSettings> {
     if (mounted) Navigator.pop(context);
   }
 
+  bool _busyLogo = false;
+
+  Future<void> _pickLogo() async {
+    try {
+      final path = await Native.pickFile();
+      if (path == null) return;
+      setState(() => _busyLogo = true);
+      final bytes = await File(path).readAsBytes();
+      final b64 = LogoService.fromPicked(bytes);
+      await app.set('store_logo', b64);
+      await Activity.log('pengaturan', 'Ganti logo / kop toko', 'Ukuran setelah diperkecil ${(b64.length * 3 / 4 / 1024).toStringAsFixed(0)} KB');
+      Notify.success('Logo disimpan (otomatis diperkecil)');
+    } on FormatException catch (e) {
+      Notify.error(e.message);
+    } catch (e) {
+      Notify.error('Gagal membaca gambar: $e');
+    } finally {
+      if (mounted) setState(() => _busyLogo = false);
+    }
+  }
+
+  Future<void> _removeLogo() async {
+    final ok = await confirmDialog(context, title: 'Hapus logo?', message: 'Login & struk kembali memakai tampilan tanpa logo.', danger: true, okText: 'Hapus');
+    if (!ok) return;
+    await app.set('store_logo', '');
+    await Activity.log('pengaturan', 'Hapus logo / kop toko');
+  }
+
+  Widget _logoCard(AppState a) {
+    final cs = Theme.of(context).colorScheme;
+    final logo = a.logo;
+    return SoftCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('Logo / Kop Toko', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        const SizedBox(height: 4),
+        Text('Dipakai di halaman login dan di bagian atas struk. Foto dari galeri otomatis diperkecil.',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 12),
+        Container(
+          height: 150,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: _busyLogo
+              ? const CircularProgressIndicator()
+              : logo == null
+                  ? Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.add_photo_alternate_outlined, size: 44, color: cs.outline),
+                      const SizedBox(height: 6),
+                      Text('Belum ada logo', style: TextStyle(color: cs.outline)),
+                    ])
+                  : Image.memory(logo, fit: BoxFit.contain, gaplessPlayback: true),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: _busyLogo ? null : _pickLogo,
+              icon: const Icon(Icons.photo_library_rounded),
+              label: Text(logo == null ? 'Upload Foto' : 'Ganti Foto'),
+            ),
+          ),
+          if (logo != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: _removeLogo,
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Hapus'),
+            ),
+          ],
+        ]),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Tampilkan logo di halaman login'),
+          value: a.b('logo_login'),
+          onChanged: logo == null ? null : (v) => a.set('logo_login', v ? '1' : '0'),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Tampilkan alamat & telepon di login'),
+          value: a.b('login_show_address'),
+          onChanged: (v) => a.set('login_show_address', v ? '1' : '0'),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Cetak logo di struk'),
+          subtitle: const Text('Dicetak hitam-putih di printer thermal'),
+          value: a.b('rc_show_logo'),
+          onChanged: logo == null ? null : (v) => a.set('rc_show_logo', v ? '1' : '0'),
+        ),
+        if (logo != null && a.b('rc_show_logo')) ...[
+          Row(children: [
+            const Text('Lebar logo di struk'),
+            Expanded(
+              child: Slider(
+                min: 30,
+                max: 100,
+                divisions: 7,
+                value: a.i('rc_logo_width', 60).clamp(30, 100).toDouble(),
+                label: '${a.i('rc_logo_width', 60)}%',
+                onChanged: (v) => a.set('rc_logo_width', '${v.round()}'),
+              ),
+            ),
+          ]),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Cetak nama toko di bawah logo'),
+            subtitle: const Text('Matikan bila nama toko sudah ada di gambar logo'),
+            value: a.b('rc_show_name'),
+            onChanged: (v) => a.set('rc_show_name', v ? '1' : '0'),
+          ),
+        ],
+        const SizedBox(height: 4),
+        OutlinedButton.icon(
+          onPressed: a.get('pr_address').isEmpty
+              ? null
+              : () => PrinterService.printItems(a, Receipts.header(a), okMsg: 'Kop dicetak'),
+          icon: const Icon(Icons.print_rounded),
+          label: Text(a.get('pr_address').isEmpty ? 'Tes cetak kop (pilih printer dulu)' : 'Tes cetak kop struk'),
+        ),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final a = context.watch<AppState>();
@@ -122,6 +252,8 @@ class _StoreSettingsState extends State<StoreSettings> {
       appBar: AppBar(title: const Text('Profil Toko & Struk')),
       body: MaxWidth(
         child: ListView(padding: const EdgeInsets.all(16), children: [
+          _logoCard(a),
+          const SizedBox(height: 14),
           TextField(controller: _name, decoration: inputDeco('Nama toko', icon: Icons.storefront_rounded)),
           const SizedBox(height: 10),
           TextField(controller: _addr, maxLines: 2, decoration: inputDeco('Alamat', icon: Icons.place_rounded)),

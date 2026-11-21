@@ -28,19 +28,33 @@ class _Brand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final logo = app.logo;
+    final useLogo = logo != null && app.b('logo_login');
     return Column(children: [
       Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(34),
+          color: useLogo ? Colors.white : null,
+          borderRadius: BorderRadius.circular(useLogo ? 24 : 34),
           boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, 10))],
         ),
-        child: ClipRRect(borderRadius: BorderRadius.circular(34), child: Image.asset('assets/logo.png', width: 140, height: 140)),
+        padding: useLogo ? const EdgeInsets.all(12) : EdgeInsets.zero,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(useLogo ? 14 : 34),
+          child: useLogo
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280, maxHeight: 150, minWidth: 90, minHeight: 90),
+                  child: Image.memory(logo!, fit: BoxFit.contain, gaplessPlayback: true),
+                )
+              : Image.asset('assets/logo.png', width: 140, height: 140),
+        ),
       ),
       const SizedBox(height: 16),
       Text(app.get('store_name'),
           textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900)),
-      if (app.get('store_address').isNotEmpty)
+      if (app.get('store_address').isNotEmpty && app.b('login_show_address'))
         Text(app.get('store_address'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+      if (app.get('store_phone').isNotEmpty && app.b('login_show_address'))
+        Text('Telp. ${app.get('store_phone')}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
     ]);
   }
 }

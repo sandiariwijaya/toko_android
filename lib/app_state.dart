@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'db/database.dart';
+import 'services/logo.dart';
 import 'models.dart';
 
 class ThemeSeed {
@@ -50,6 +53,12 @@ class AppState extends ChangeNotifier {
     'store_name': 'Toko Saya',
     'store_address': '',
     'store_phone': '',
+    'store_logo': '', // PNG base64 (sudah diperkecil otomatis)
+    'logo_login': '1',
+    'login_show_address': '1',
+    'rc_show_logo': '1',
+    'rc_logo_width': '60', // persen lebar kertas
+    'rc_show_name': '1',
     // struk
     'receipt_header': '',
     'receipt_footer': 'Terima kasih atas kunjungan Anda\nBarang yang sudah dibeli tidak dapat ditukar',
@@ -114,6 +123,20 @@ class AppState extends ChangeNotifier {
     await Repo.saveSettings(kv);
     if (kv.containsKey('ui_orientation')) applyOrientation();
     notifyListeners();
+  }
+
+  // ---------------- logo / kop toko ----------------
+  String _logoKey = '';
+  Uint8List? _logo;
+
+  /// Logo toko yang di-upload (null = pakai ikon bawaan)
+  Uint8List? get logo {
+    final k = get('store_logo');
+    if (k != _logoKey) {
+      _logoKey = k;
+      _logo = LogoService.decode(k);
+    }
+    return _logo;
   }
 
   // ---------------- user & hak akses ----------------

@@ -6,6 +6,7 @@ import '../app_state.dart';
 import '../models.dart';
 import '../utils/format.dart';
 import '../utils/notify.dart';
+import 'logo.dart';
 import 'native.dart';
 
 // ======================= ITEM CETAK =======================
@@ -23,6 +24,12 @@ class PText extends PItem {
 class PBarcode extends PItem {
   final String code;
   PBarcode(this.code);
+}
+
+/// Gambar (logo kop) dalam bentuk perintah ESC/POS siap kirim
+class PImage extends PItem {
+  final List<int> escPos;
+  PImage(this.escPos);
 }
 
 class PFeed extends PItem {
@@ -131,7 +138,14 @@ class Receipts {
   static List<PItem> header(AppState app) {
     final w = chars(app);
     final f = TextFmt(w);
-    final out = _title(app, f, w);
+    final out = <PItem>[];
+    final logo = app.logo;
+    final withLogo = logo != null && app.b('rc_show_logo');
+    if (withLogo) {
+      final data = LogoService.escPos(logo, paperDots: app.get('pr_paper') == '80' ? 576 : 384, widthPct: app.i('rc_logo_width', 60));
+      if (data.isNotEmpty) out.add(PImage(data));
+    }
+    if (!withLogo || app.b('rc_show_name')) out.addAll(_title(app, f, w));
     final addr = TextFmt.ascii(app.get('store_address')).trim();
     if (addr.isNotEmpty) {
       for (final l in f.wrap(addr)) {
@@ -379,6 +393,9 @@ class EscPos {
         if (mode != 0) bytes.addAll([0x1B, 0x21, 0x00]);
       } else if (it is PBarcode) {
         bytes.addAll(_barcode(app, it.code));
+      } else if (it is PImage) {
+        bytes.addAll(it.escPos);
+        bytes.addAll([0x1B, 0x61, 0x00]);
       } else if (it is PFeed) {
         for (var i = 0; i < it.lines; i++) {
           bytes.add(0x0A);
@@ -518,6 +535,8 @@ class PrinterService {
         b.writeln(TextFmt.ascii(it.text));
       } else if (it is PBarcode) {
         b.writeln('||||| ${it.code} |||||');
+      } else if (it is PImage) {
+        b.writeln('        [ LOGO TOKO ]');
       } else if (it is PFeed) {
         b.writeln();
       }
